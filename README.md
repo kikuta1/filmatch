@@ -75,6 +75,23 @@
 
 ---
 
+## アーキテクチャ
+
+Next.js 1サーバー構成。API Routes（Route Handlers）をバックエンドとして使用し、フロントとバックを同一プロジェクト内で管理する。
+
+```
+ブラウザ (React) → Next.js API Routes → TMDB API
+                   ├ APIキーはここだけ（サーバーサイド）
+                   ├ Rate Limiting
+                   └ CORS制御
+```
+
+- クライアントは `/api/movies/...` のみを叩く
+- TMDB APIキーはサーバーサイド環境変数（`TMDB_API_KEY`）で管理し、ブラウザに露出しない
+- 将来バックエンドを分離したくなった場合、API Routes部分をそのまま別サーバーに切り出せる
+
+---
+
 ## フロントエンド
 
 ### 技術スタック
@@ -103,7 +120,7 @@ src/
     MovieDetail.tsx       # 詳細ビュー（スチル画像グリッド + 全映画情報）
     ActionBar.tsx         # いいね・レビュー数・評価・ブックマーク
   lib/
-    tmdb.ts               # TMDB APIクライアント
+    tmdb.ts               # TMDB APIクライアント（API Routes から呼び出し）
     recommend.ts          # レコメンドロジック（discover + similar映画ミックス）
     filmarks.ts           # Filmarksダミー API + 検索URL生成
   store/
@@ -150,30 +167,74 @@ src/
 
 ## バックエンド
 
-### MVP構成（サーバーレス）
-MVPではバックエンドサーバーを持たず、クライアントからTMDB APIを直接呼び出す。
+### 構成
+Next.js API Routes（Route Handlers）でTMDB APIへのプロキシを提供する。
 
 | 項目 | 内容 |
 |------|------|
+| ランタイム | Next.js Route Handlers (Node.js) |
 | データソース | TMDB API v3 |
-| 認証 | APIキーをクライアント環境変数 (`NEXT_PUBLIC_TMDB_API_KEY`) で管理 |
-| データ永続化 | ローカルストレージ（zustand persist） |
+| APIキー管理 | サーバーサイド環境変数 `TMDB_API_KEY`（ブラウザ非公開） |
+| データ永続化 | ローカルストレージ（zustand persist）※将来DB化 |
 
-### 使用するTMDB APIエンドポイント
-| エンドポイント | 用途 |
+### API Routes ディレクトリ構成
+```
+src/app/api/
+  movies/
+    discover/
+      route.ts            # GET /api/movies/discover?genres=28,12&decade=2020s&page=3
+    [id]/
+      route.ts            # GET /api/movies/{id} → detail + credits + images + providers を結合
+      similar/
+        route.ts          # GET /api/movies/{id}/similar
+    genres/
+      route.ts            # GET /api/movies/genres
+```
+
+### APIエンドポイント仕様
+
+#### `GET /api/movies/discover`
+フィルター条件に基づく映画一覧を返す。
+
+| パラメータ | 型 | 必須 | 説明 |
+|------|------|------|------|
+| `genres` | string | No | カンマ区切りのジャンルID（例: `28,12`） |
+| `decade` | string | No | 年代（`2020s`, `2010s`, `2000s`, `1990s`, `1980s`, `older`） |
+| `page` | number | No | ページ番号（デフォルト: ランダム） |
+
+レスポンス: `{ results: Movie[], total_pages: number }`
+
+#### `GET /api/movies/{id}`
+映画の全情報を結合して返す（detail + credits + images + watch providers）。
+
+レスポンス: `{ detail: MovieDetail, credits: MovieCredits, images: MovieImages, watchProviders: WatchProviders | null }`
+
+#### `GET /api/movies/{id}/similar`
+類似映画の一覧を返す。
+
+レスポンス: `{ results: Movie[], total_pages: number }`
+
+#### `GET /api/movies/genres`
+ジャンル一覧を返す。
+
+レスポンス: `{ genres: Genre[] }`
+
+### TMDB API 呼び出し先
+各 API Route から以下の TMDB エンドポイントを呼び出す。共通パラメータ: `language=ja-JP`
+
+| TMDB エンドポイント | 対応する API Route |
 |------|------|
-| `GET /discover/movie` | フィルター条件に基づく映画取得（ジャンル・年代・ページ指定） |
-| `GET /movie/{id}` | 映画詳細（上映時間、予算、興収、あらすじ等） |
-| `GET /movie/{id}/credits` | 監督・キャスト |
-| `GET /movie/{id}/images` | スチル画像・バックドロップ |
-| `GET /movie/{id}/watch/providers` | 配信サービス情報（日本リージョン: JP） |
-| `GET /movie/{id}/similar` | 類似映画（レコメンド用） |
-| `GET /genre/movie/list` | ジャンル一覧 |
-
-共通パラメータ: `language=ja-JP`
+| `GET /discover/movie` | `/api/movies/discover` |
+| `GET /movie/{id}` | `/api/movies/{id}` |
+| `GET /movie/{id}/credits` | `/api/movies/{id}` |
+| `GET /movie/{id}/images` | `/api/movies/{id}` |
+| `GET /movie/{id}/watch/providers` | `/api/movies/{id}` |
+| `GET /movie/{id}/similar` | `/api/movies/{id}/similar` |
+| `GET /genre/movie/list` | `/api/movies/genres` |
 
 ### 画像配信
 TMDB画像CDN (`https://image.tmdb.org/t/p/`) を使用。Next.js の `remotePatterns` で許可設定済み。
+画像URLの組み立てはフロントエンド側で行う（APIはパスのみ返す）。
 
 | 用途 | サイズ |
 |------|------|
@@ -183,29 +244,69 @@ TMDB画像CDN (`https://image.tmdb.org/t/p/`) を使用。Next.js の `remotePat
 | プロフィール画像 | `w185` |
 | 配信サービスロゴ | `w342` |
 
-### レコメンドアルゴリズム（クライアント側実装）
-1. `discover/movie` でフィルター条件に合う映画をランダムページから取得
-2. いいね済み映画がある場合、ランダムに1つ選び `movie/{id}/similar` で類似映画を取得
+### セキュリティ
+
+#### APIキー保護
+- `TMDB_API_KEY` はサーバーサイド専用環境変数（`NEXT_PUBLIC_` プレフィックスなし）
+- ブラウザのDevTools、ソースコード、ネットワークタブのいずれからも取得不可
+- API Routes がプロキシとしてTMDBにリクエストを中継
+
+#### Rate Limiting
+API Routesにリクエスト制限を設ける。外部からの踏み台利用を防止。
+
+| 設定 | 値 |
+|------|------|
+| 方式 | IPアドレスベースのスライディングウィンドウ |
+| 制限 | 60リクエスト / 分 / IP |
+| 超過時レスポンス | `429 Too Many Requests` |
+| 実装 | インメモリMap（MVP）。将来はRedis等に置換可 |
+
+```
+src/lib/
+  rate-limit.ts           # Rate Limiter 実装
+```
+
+#### CORS設定
+API Routesに許可オリジンを制限するヘッダーを設定。
+
+| ヘッダー | 値 |
+|------|------|
+| `Access-Control-Allow-Origin` | 自ドメインのみ（本番: デプロイURL、開発: `localhost:3000`） |
+| `Access-Control-Allow-Methods` | `GET` |
+| `Access-Control-Allow-Headers` | `Content-Type` |
+
+※ ブラウザ以外からの直接アクセス（curl等）はCORSでは防げないため、Rate Limitingと併用
+
+#### セキュリティまとめ
+```
+外部ブラウザ → CORS拒否（自ドメイン以外のOriginヘッダー）
+curl/bot    → Rate Limitingで制限（60回/分/IP超過で429）
+正規ユーザー → 正常レスポンス
+```
+
+### レコメンドアルゴリズム
+フロントエンドからAPI Routesを経由してTMDBデータを取得し、フロントエンド側でミックスする。
+
+1. `/api/movies/discover` でフィルター条件に合う映画をランダムページから取得
+2. いいね済み映画がある場合、ランダムに1つ選び `/api/movies/{id}/similar` で類似映画を取得
 3. discover結果（60%）と similar結果（40%）をランダムに混合
 4. 表示済みIDに含まれる映画を除外
 5. ポスター画像がない映画を除外
 6. 結果をキューに追加
 
+※ アルゴリズム自体は軽量（TMDBの類似映画APIをそのまま活用、自前での重い計算なし）
+
 ### 将来のバックエンド拡張
-将来ログイン機能を追加する際に以下を構築:
 
 | 機能 | 技術候補 |
 |------|------|
 | 認証 | NextAuth.js / Supabase Auth |
 | ユーザーデータ保存 | Supabase / PlanetScale |
-| TMDB APIプロキシ | Next.js API Routes（APIキー隠蔽） |
 | Filmarks連携 | API Routes経由でダミー→実APIに差替 |
+| Rate Limiting強化 | Redis（Upstash等） |
 
-API Routes化する際のエンドポイント案:
+将来追加するエンドポイント:
 ```
-GET  /api/movies/discover?genres=28,12&decade=2020s&page=3
-GET  /api/movies/{id}          # detail + credits + images + providers を結合
-GET  /api/movies/{id}/similar
 POST /api/user/like/{movieId}
 POST /api/user/bookmark/{movieId}
 GET  /api/user/history
@@ -223,6 +324,9 @@ GET  /api/user/history
 - ブックマーク（ローカルストレージ）
 - 表示済み映画の非再表示
 - Filmarksページへのリンク
+- API Routes によるTMDB APIプロキシ（APIキー隠蔽）
+- Rate Limiting（IP単位 60回/分）
+- CORS制御
 
 ### 含まない（将来実装）
 - ログイン / ユーザー認証
@@ -230,17 +334,17 @@ GET  /api/user/history
 - Filmarks実API連携
 - ブックマーク一覧画面
 - SNSシェア機能
-- TMDB APIキーのサーバーサイド隠蔽
 
 ---
 
 ## 環境変数
 
 ```
-NEXT_PUBLIC_TMDB_API_KEY=your_tmdb_api_key_here
+TMDB_API_KEY=your_tmdb_api_key_here
 ```
 
 `.env.local` に設定。TMDB ( https://www.themoviedb.org/ ) でアカウント作成後、API v3キーを取得。
+※ `NEXT_PUBLIC_` プレフィックスは付けない（サーバーサイド専用）
 
 ---
 
