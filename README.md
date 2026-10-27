@@ -47,8 +47,16 @@
   - 視聴可能な配信サービス
   - Filmarksページへのリンク
 
-### 3. ブックマーク一覧画面（将来実装）
-- 過去にいいね / ブックマークした映画の一覧
+### 3. ライブラリ画面（`/library`）
+トップ画面・探索画面右上のボタンから開く。タブで3つを切り替える。
+- **いいね**: いいねした映画のポスター一覧（新しい順）。タップで詳細を表示（右スワイプか×で閉じる）
+- **保存**: ブックマークした映画のポスター一覧
+- **傾向**: いいねした映画から好みを可視化
+  - 「◯◯ × ◯◯年代の△△型」という一言まとめ（3本以上いいねで表示）
+  - いいね数・平均評価・レビュアー数の中央値
+  - 好きなジャンル（横棒グラフ、上位8件）
+  - 好きな年代（縦棒グラフ、古い順）
+  - レビュアー数の中央値から「隠れた名作ハンター（300未満）/ バランス型 / 話題作派（3000以上）」を判定
 
 ---
 
@@ -154,7 +162,7 @@ src/
 - ポスター画像: `w500` サイズ（スマホに最適）
 - 背景ブラー用画像: `w342`（低解像度で軽量）
 - スチル画像: `w780`〜`w1280`
-- Next.js `<Image>` による自動最適化 + lazy loading
+- `<Image unoptimized>` + lazy loading。TMDB の CDN がサイズ別に配信しているので Next.js の画像最適化は通さない（最適化サーバーのタイムアウトと Vercel の最適化回数上限を避けるため）
 
 ### デザイン
 - ダークテーマベース（背景: `#1a1a2e`、カード: `#16213e`）
@@ -189,6 +197,11 @@ src/app/api/
         route.ts          # GET /api/movies/{id}/similar
     genres/
       route.ts            # GET /api/movies/genres
+    [id]/recommendations/
+      route.ts            # GET /api/movies/{id}/recommendations
+  people/
+    [id]/directed/
+      route.ts            # GET /api/people/{id}/directed → その人の監督作（レビュアー数順）
 ```
 
 ### APIエンドポイント仕様
@@ -233,7 +246,7 @@ src/app/api/
 | `GET /genre/movie/list` | `/api/movies/genres` |
 
 ### 画像配信
-TMDB画像CDN (`https://image.tmdb.org/t/p/`) を使用。Next.js の `remotePatterns` で許可設定済み。
+TMDB画像CDN (`https://image.tmdb.org/t/p/`) から直接読み込む（Next.js の画像最適化は通さない）。
 画像URLの組み立てはフロントエンド側で行う（APIはパスのみ返す）。
 
 | 用途 | サイズ |
@@ -257,7 +270,7 @@ API Routesにリクエスト制限を設ける。外部からの踏み台利用�
 | 設定 | 値 |
 |------|------|
 | 方式 | IPアドレスベースのスライディングウィンドウ |
-| 制限 | 60リクエスト / 分 / IP |
+| 制限 | 120リクエスト / 分 / IP |
 | 超過時レスポンス | `429 Too Many Requests` |
 | 実装 | インメモリMap（MVP）。将来はRedis等に置換可 |
 
@@ -280,7 +293,7 @@ API Routesに許可オリジンを制限するヘッダーを設定。
 #### セキュリティまとめ
 ```
 外部ブラウザ → CORS拒否（自ドメイン以外のOriginヘッダー）
-curl/bot    → Rate Limitingで制限（60回/分/IP超過で429）
+curl/bot    → Rate Limitingで制限（120回/分/IP超過で429）
 正規ユーザー → 正常レスポンス
 ```
 
@@ -288,11 +301,32 @@ curl/bot    → Rate Limitingで制限（60回/分/IP超過で429）
 フロントエンドからAPI Routesを経由してTMDBデータを取得し、フロントエンド側でミックスする。
 
 1. `/api/movies/discover` でフィルター条件に合う映画をランダムページから取得
-2. いいね済み映画がある場合、ランダムに1つ選び `/api/movies/{id}/similar` で類似映画を取得
+2. いいね済み映画がある場合、ランダムに1つ選び似た映画を取得（`/api/movies/{id}/recommendations` と `/api/movies/{id}/similar` を交互に混ぜる）
 3. discover結果（60%）と similar結果（40%）をランダムに混合
 4. 表示済みIDに含まれる映画を除外
 5. ポスター画像がない映画を除外
 6. 結果をキューに追加
+
+#### 「似た映画」の候補
+| 取得元 | 内容 |
+|------|------|
+| TMDB `/movie/{id}/recommendations` | 「これを好きな人はこれも好き」寄り。品質が高めなので優先 |
+| TMDB `/movie/{id}/similar` | キーワード・ジャンルが近い作品 |
+| TMDB `/person/{id}/movie_credits`（監督のみ） | いいねした映画の**監督**の他作品。キャストは使わない |
+
+監督は `/api/movies/{id}` の credits（スワイプ時に先読み済み）から取るので、通常は追加の通信なしで分かる。
+
+#### いいね直後の差し込み
+いいねした瞬間に似た映画を2本選び、**2つ先**（次の映画は先読み済みなので、その後ろ）に差し込む。
+- 同じ監督の作品があれば1本はそれにし、「◯◯ 監督の別作品」と表示する
+- 残りは recommendations + similar の上位10本からランダムに選び、「『◯◯』が好きなあなたに」と表示する
+- TMDB の類似映画が空の作品（新作・マイナー作品に多い）は、その映画のジャンル上位2つを両方含む映画（`/api/movies/discover?genres=..&match=all`）で代替する
+- 類似映画にも discover と同じ「レビュー20件以上」の足切りを適用する
+- 差し込まなかった残り（1回の取得で最大18本程度）は**候補プール**に貯める（上限100本、古い順に破棄）
+  - 次のバッチの「似た映画」枠（20本中8本）はプールから優先して埋め、足りない分だけ類似映画APIを呼ぶ。プールで埋まれば類似映画APIは呼ばない
+  - プール由来の映画にも「『◯◯』が好きなあなたに」を表示する
+  - いいねを取り消すと、その映画由来の候補はプールから外す
+  - プールはその探索セッション中だけ保持（ページを離れる・条件を変えると空になる）
 
 ※ アルゴリズム自体は軽量（TMDBの類似映画APIをそのまま活用、自前での重い計算なし）
 
@@ -322,17 +356,17 @@ GET  /api/user/history
 - ポスター・スチル画像表示
 - いいねボタン + 類似映画レコメンド
 - ブックマーク（ローカルストレージ）
+- ライブラリ画面（いいね一覧・保存一覧・好みの傾向）
 - 表示済み映画の非再表示
 - Filmarksページへのリンク
 - API Routes によるTMDB APIプロキシ（APIキー隠蔽）
-- Rate Limiting（IP単位 60回/分）
+- Rate Limiting（IP単位 120回/分）
 - CORS制御
 
 ### 含まない（将来実装）
 - ログイン / ユーザー認証
 - サーバーサイドDB
 - Filmarks実API連携
-- ブックマーク一覧画面
 - SNSシェア機能
 
 ---
@@ -343,17 +377,29 @@ GET  /api/user/history
 TMDB_API_KEY=your_tmdb_api_key_here
 ```
 
-`.env.local` に設定。TMDB ( https://www.themoviedb.org/ ) でアカウント作成後、API v3キーを取得。
+`.env.local` に設定（`.env.example` をコピー）。TMDB ( https://www.themoviedb.org/ ) でアカウント作成後、API v3キーを取得。v4 の Read Access Token を入れても動く。
 ※ `NEXT_PUBLIC_` プレフィックスは付けない（サーバーサイド専用）
+
+**APIキー未設定でも動作する。** その場合は架空映画のダミーデータ（`src/lib/mock.ts`）が返り、探索画面の右上に `DEMO` と表示される。キーを設定してサーバーを再起動すると本番データに切り替わる。
 
 ---
 
 ## 起動方法
 
 ```bash
-nvm use 20
+# Node.js 20 以上
 npm install
+cp .env.example .env.local   # TMDB_API_KEY を記入（空ならダミーデータ）
 npm run dev
 ```
 
-http://localhost:3000 にアクセス
+http://localhost:3000 にアクセス。スマホ実機で確認する場合は同じWi-Fiで `http://<PCのIP>:3000`。
+
+- PC操作: `↑/↓`・ホイールで映画切替、`←/→` でポスター/詳細切替。ポスターのダブルタップでもいいね
+- 本番ビルド: `npm run build && npm start`
+
+### 実装メモ
+- Next.js 16 を使用。`middleware` は `proxy` に改名されたため、CORS と Rate Limiting は `src/proxy.ts`（`/api/*` に適用）で行う
+- `/api/movies/{id}` は TMDB の `append_to_response` で detail・credits・images・watch/providers を1リクエストで取得している
+- TMDB へのリクエストは `"use cache"`（Cache Components）で1時間キャッシュ
+- `npm run dev` / `build` は `--webpack` 指定。Windows の Smart App Control 環境で Turbopack のネイティブバイナリがブロックされるため。Mac 等なら `--webpack` を外して Turbopack でも動く
