@@ -1,405 +1,123 @@
-# FilMatch - 要件定義書
+# FilMatch
 
-## 概要
+**映画を、速く、気軽に、おしゃれに探す。**
+TikTok のような縦スワイプで映画を次々に眺め、「いいね」した作品から好みを学習して似た映画を出す Web アプリです。
 
-映画を短時間で気軽に探索できるWebアプリ。TikTok/Shortsのような縦スワイプUIで映画を次々と閲覧し、「いいね」で好みを学習してレコメンドに反映する。
-視覚的インパクト（ポスター・スチル画像）を重視し、ドーパミンを刺激するUXを目指す。
+**デモ: https://filmatch.vercel.app** （スマホでの閲覧を推奨）
+<!-- TODO: Vercel デプロイ後に実際の URL に差し替える -->
 
-| 項目 | 内容 |
-|------|------|
-| プロダクト名 | FilMatch |
-| コンセプト | 映画を短い時間で気軽に探索できるツール |
-| キーワード | 速く、気軽に、おしゃれに |
-| 想定デバイス | スマホ（ブラウザ）メイン、PCも利用可 |
-| 参考プロダクト | https://filmdip.com/ |
+<p>
+  <img src="docs/screenshots/02-poster.png" width="200" alt="探索画面（ポスタービュー）">
+  <img src="docs/screenshots/03-detail.png" width="200" alt="探索画面（詳細ビュー）">
+  <img src="docs/screenshots/04-recommend.png" width="200" alt="いいねから差し込まれたおすすめ">
+  <img src="docs/screenshots/06-taste.png" width="200" alt="好みの傾向">
+</p>
 
----
+## なぜ作ったか
 
-## 画面構成
+映画を探すとき、配信サービスのおすすめは「流行っている作品」に偏りがちで、自分に合う知らない映画に出会いにくいと感じていました。
+そこで、**ポスターの第一印象で直感的に選べる**こと、**人気作に偏らずに新しい作品と出会える**ことを軸に、短い時間で気軽に映画を探索できるツールを作りました。
 
-### 1. フィルタリング画面（トップ）
-- ジャンル選択（複数選択可）
-- 年代選択（1970年以前 / 1980s / 1990s / 2000s / 2010s / 2020s）
-- 「探索開始」ボタン
-- 未選択の場合は全ジャンル・全年代から探索
+## 主な機能
 
-### 2. メイン探索画面（スワイプ画面）
-1画面に1映画を表示。縦スワイプで映画切替、横スワイプでビュー切替。
+| 画面 | 内容 |
+|---|---|
+| フィルタリング | ジャンル（複数選択）と年代で絞り込んで探索開始 |
+| 探索（ポスター） | 縦スワイプで次の映画へ。ポスターを大きく表示し、ダブルタップでいいね |
+| 探索（詳細） | 横スワイプで切り替え。スチル画像のグリッド、監督・キャスト、予算・興行収入、国内の配信サービス、Filmarks へのリンク |
+| ライブラリ | いいね一覧・保存一覧と、いいねから分析した**好みの傾向**（ジャンル・年代のグラフ、「隠れた名作ハンター」などのタイプ判定） |
 
-#### ポスタービュー（デフォルト）
-- 映画ポスター画像を大きく表示
-- 映画タイトル（公開年）
-- 右サイドにアクションバー:
-  - いいねボタン（Good）
-  - レビュアー数（目アイコン + 数値）
-  - 評価平均（星アイコン + 数値）
-  - ブックマークボタン（保存）
+PC ではキーボード（↑↓←→）とマウスホイールでも操作できます。
 
-#### 詳細ビュー（横スワイプで遷移）
-- 映画スチル画像を複数表示（グリッドレイアウト）
-- 右サイドに同じアクションバー
-- 映画情報:
-  - 上映時間、ジャンル、公開日
-  - 監督・キャスト（プロフィール画像付き）
-  - 制作国、配給会社
-  - 予算・興行収入
-  - キャッチコピー / あらすじ
-  - 視聴可能な配信サービス
-  - Filmarksページへのリンク
+## 工夫した点
 
-### 3. ライブラリ画面（`/library`）
-トップ画面・探索画面右上のボタンから開く。タブで3つを切り替える。
-- **いいね**: いいねした映画のポスター一覧（新しい順）。タップで詳細を表示（右スワイプか×で閉じる）
-- **保存**: ブックマークした映画のポスター一覧
-- **傾向**: いいねした映画から好みを可視化
-  - 「◯◯ × ◯◯年代の△△型」という一言まとめ（3本以上いいねで表示）
-  - いいね数・平均評価・レビュアー数の中央値
-  - 好きなジャンル（横棒グラフ、上位8件）
-  - 好きな年代（縦棒グラフ、古い順）
-  - レビュアー数の中央値から「隠れた名作ハンター（300未満）/ バランス型 / 話題作派（3000以上）」を判定
+### 1. いいねが「すぐ効く」レコメンド
+いいねした瞬間に似た映画を取得し、**2本先に差し込み**ます（次の1本は画像を先読み済みのため、その後ろに入れる）。
+差し込んだカードには「『◯◯』が好きなあなたに」「◯◯ 監督の別作品」と理由を表示し、好みが反映された実感を持てるようにしました。
 
----
+似た映画の候補は3つの情報源を組み合わせています。
 
-## 機能要件
+| 情報源 | 特徴 |
+|---|---|
+| TMDB recommendations | 「これを好きな人はこれも好き」に近い。品質が高めなので優先 |
+| TMDB similar | キーワード・ジャンルが近い作品 |
+| 同じ監督の作品 | 理由が明確で刺さりやすい |
 
-### コアインタラクション
-- **縦スワイプ**: 次/前の映画を表示（TikTok風アニメーション）
-- **横スワイプ**: ポスタービュー <-> 詳細ビュー切替
-- **いいね**: 映画にGoodを付ける → レコメンドに反映
-- **ブックマーク**: 映画を保存
+新作やマイナー作品は TMDB に類似データがないことが多いため、その場合は**同じジャンルの組み合わせ**で探すフォールバックを用意しています。
 
-### レコメンドロジック
-- いいねした映画の類似映画が出やすくなる
-- 1度表示した映画は再表示しない（セッション内管理、将来はユーザー単位）
-- 高いランダム性を維持し、人気映画に偏らないようにする
+### 2. API を無駄にしない候補プール
+TMDB の一覧 API は1回で20件返ってきます。差し込みに使わなかった候補は捨てずに**プールに貯め**、次の20本を作るときの「似た映画」枠（40%）に優先して使います。プールだけで枠が埋まれば類似映画 API を呼ばないので、いいねするほど API 呼び出しが減ります。
 
-### Filmarks連携
-- MVP: Filmarksページへの検索リンクのみ
-- 将来: ダミーAPIインターフェースを用意し、実API公開時に差し替え可能にする
+### 3. 人気作に偏らない探索
+条件に合う映画を人気順の**全ページから等確率でランダムに**選ぶことで、有名作だけでなく知らない作品にも出会えるようにしました。一度表示した映画は再表示しません。
 
-### ログイン機能（将来実装）
-- MVP: ログイン不要。ローカルストレージで状態管理
-- 将来: 認証追加で過去のいいね・ブックマークをサーバー保存
+### 4. API キーを守る構成
+ブラウザは自前の API Routes だけを呼び、TMDB の API キーはサーバー側の環境変数にのみ置いています。
+`proxy.ts`（Next.js 16 で middleware から改名）で **CORS 制御**と **IP 単位のレート制限**（120回/分）をかけ、外部からの踏み台利用を防いでいます。
 
----
+### 5. API キーなしでも動く
+`TMDB_API_KEY` が未設定のときは、架空の映画データと SVG で生成したポスターで動作します（画面右上に DEMO 表示）。クローンしてすぐ動作確認できます。
+
+## 技術スタック
+
+| 分類 | 使用技術 |
+|---|---|
+| フレームワーク | Next.js 16（App Router / Cache Components）, React 19 |
+| 言語 | TypeScript |
+| スタイル | Tailwind CSS v4 |
+| アニメーション | framer-motion（スワイプ・カード遷移） |
+| 状態管理 | zustand（persist で localStorage に保存） |
+| データ | TMDB API v3 |
+| ホスティング | Vercel |
 
 ## アーキテクチャ
 
-Next.js 1サーバー構成。API Routes（Route Handlers）をバックエンドとして使用し、フロントとバックを同一プロジェクト内で管理する。
-
 ```
-ブラウザ (React) → Next.js API Routes → TMDB API
-                   ├ APIキーはここだけ（サーバーサイド）
-                   ├ Rate Limiting
-                   └ CORS制御
-```
-
-- クライアントは `/api/movies/...` のみを叩く
-- TMDB APIキーはサーバーサイド環境変数（`TMDB_API_KEY`）で管理し、ブラウザに露出しない
-- 将来バックエンドを分離したくなった場合、API Routes部分をそのまま別サーバーに切り出せる
-
----
-
-## フロントエンド
-
-### 技術スタック
-| 技術 | 用途 |
-|------|------|
-| Next.js (App Router) | フレームワーク |
-| TypeScript | 言語 |
-| Tailwind CSS | スタイリング |
-| framer-motion | スワイプアニメーション |
-| zustand | 状態管理（いいね・ブックマーク・表示履歴） |
-| Noto Sans JP | フォント |
-
-### ディレクトリ構成
-```
-src/
-  app/
-    page.tsx              # フィルタリング画面
-    explore/
-      page.tsx            # メイン探索画面
-    layout.tsx            # 共通レイアウト（日本語、スマホ最適化viewport）
-    globals.css           # ダークテーマベースのグローバルスタイル
-  components/
-    FilterForm.tsx        # ジャンル・年代選択UI
-    SwipeContainer.tsx    # 縦スワイプ（映画切替）+ 横スワイプ（ビュー切替）制御
-    MovieCard.tsx         # ポスタービュー（ポスター大表示 + 背景ブラー）
-    MovieDetail.tsx       # 詳細ビュー（スチル画像グリッド + 全映画情報）
-    ActionBar.tsx         # いいね・レビュー数・評価・ブックマーク
-  lib/
-    tmdb.ts               # TMDB APIクライアント（API Routes から呼び出し）
-    recommend.ts          # レコメンドロジック（discover + similar映画ミックス）
-    filmarks.ts           # Filmarksダミー API + 検索URL生成
-  store/
-    history.ts            # Zustand永続化ストア（seen / liked / bookmarked）
-  types/
-    movie.ts              # 型定義 + ジャンル・年代定数
+ブラウザ (React)
+  │  /api/movies/... のみを呼ぶ
+  ▼
+Next.js proxy.ts ── CORS 制御 / レート制限（120回/分/IP）
+  ▼
+Next.js API Routes ── TMDB API キー（サーバー側のみ）
+  │                    "use cache" で TMDB の応答を1時間キャッシュ
+  ▼
+TMDB API
 ```
 
-### 画面詳細
+| エンドポイント | 内容 |
+|---|---|
+| `GET /api/movies/discover` | ジャンル・年代で絞り込んだ映画（ページ未指定ならランダム） |
+| `GET /api/movies/{id}` | 詳細・クレジット・画像・配信情報を1回の TMDB 呼び出しで結合 |
+| `GET /api/movies/{id}/recommendations` | おすすめ映画 |
+| `GET /api/movies/{id}/similar` | 類似映画 |
+| `GET /api/people/{id}/directed` | 監督作品の一覧 |
+| `GET /api/movies/genres` | ジャンル一覧 |
 
-#### フィルタリング画面 (`/`)
-- ジャンルはTMDBジャンルID準拠（日本語ラベル）のチップ型ボタン（複数選択可）
-- 年代はチップ型ボタン（単一選択）
-- 「探索開始」押下でクエリパラメータ付きで `/explore` へ遷移
+## チーム開発
 
-#### 探索画面 (`/explore`)
-- `SwipeContainer` がクエリパラメータからフィルター条件を受け取り映画キューを管理
-- 縦スワイプ: framer-motionの`drag="y"`でジェスチャー検知、閾値超えで次/前の映画へ
-- 横スワイプ: `drag="x"`で詳細ビューとポスタービューを切替
-- 画面上部にカウンター表示 (`1 / 20`) + スワイプヒント
+3人のチームで、キックオフ・UI案の検討（散布図で探す案とスワイプで探す案を比較し、スワイプ案に決定）・要件定義を行いました。
+要件定義書: [docs/requirements.md](docs/requirements.md)
 
-### 状態管理
-- **表示済みID** (`seenMovieIds`): 再表示防止用。Set型
-- **いいね済みID** (`likedMovieIds`): レコメンド入力 + UI表示用。Set型
-- **ブックマーク済みID** (`bookmarkedMovieIds`): 保存機能用。Set型
-- すべてローカルストレージに永続化（zustand persist middleware）
-- Set型はJSON変換時にArray化して保存、読込時にSet復元
+<!-- TODO: 自分の担当範囲を書く（例: 要件定義、レコメンドロジックの設計、フロントエンド実装 など） -->
 
-### パフォーマンス
-- 映画キューの残りが3件以下になったら自動プリフェッチ
-- ポスター画像: `w500` サイズ（スマホに最適）
-- 背景ブラー用画像: `w342`（低解像度で軽量）
-- スチル画像: `w780`〜`w1280`
-- `<Image unoptimized>` + lazy loading。TMDB の CDN がサイズ別に配信しているので Next.js の画像最適化は通さない（最適化サーバーのタイムアウトと Vercel の最適化回数上限を避けるため）
-
-### デザイン
-- ダークテーマベース（背景: `#1a1a2e`、カード: `#16213e`）
-- アクセントカラー: `#e94560`（赤系）
-- スクロールバー非表示
-- `overflow: hidden` でページ全体のスクロール防止
-- アクションボタンは丸型、アクティブ時にシャドウ付き
-
----
-
-## バックエンド
-
-### 構成
-Next.js API Routes（Route Handlers）でTMDB APIへのプロキシを提供する。
-
-| 項目 | 内容 |
-|------|------|
-| ランタイム | Next.js Route Handlers (Node.js) |
-| データソース | TMDB API v3 |
-| APIキー管理 | サーバーサイド環境変数 `TMDB_API_KEY`（ブラウザ非公開） |
-| データ永続化 | ローカルストレージ（zustand persist）※将来DB化 |
-
-### API Routes ディレクトリ構成
-```
-src/app/api/
-  movies/
-    discover/
-      route.ts            # GET /api/movies/discover?genres=28,12&decade=2020s&page=3
-    [id]/
-      route.ts            # GET /api/movies/{id} → detail + credits + images + providers を結合
-      similar/
-        route.ts          # GET /api/movies/{id}/similar
-    genres/
-      route.ts            # GET /api/movies/genres
-    [id]/recommendations/
-      route.ts            # GET /api/movies/{id}/recommendations
-  people/
-    [id]/directed/
-      route.ts            # GET /api/people/{id}/directed → その人の監督作（レビュアー数順）
-```
-
-### APIエンドポイント仕様
-
-#### `GET /api/movies/discover`
-フィルター条件に基づく映画一覧を返す。
-
-| パラメータ | 型 | 必須 | 説明 |
-|------|------|------|------|
-| `genres` | string | No | カンマ区切りのジャンルID（例: `28,12`） |
-| `decade` | string | No | 年代（`2020s`, `2010s`, `2000s`, `1990s`, `1980s`, `older`） |
-| `page` | number | No | ページ番号（デフォルト: ランダム） |
-
-レスポンス: `{ results: Movie[], total_pages: number }`
-
-#### `GET /api/movies/{id}`
-映画の全情報を結合して返す（detail + credits + images + watch providers）。
-
-レスポンス: `{ detail: MovieDetail, credits: MovieCredits, images: MovieImages, watchProviders: WatchProviders | null }`
-
-#### `GET /api/movies/{id}/similar`
-類似映画の一覧を返す。
-
-レスポンス: `{ results: Movie[], total_pages: number }`
-
-#### `GET /api/movies/genres`
-ジャンル一覧を返す。
-
-レスポンス: `{ genres: Genre[] }`
-
-### TMDB API 呼び出し先
-各 API Route から以下の TMDB エンドポイントを呼び出す。共通パラメータ: `language=ja-JP`
-
-| TMDB エンドポイント | 対応する API Route |
-|------|------|
-| `GET /discover/movie` | `/api/movies/discover` |
-| `GET /movie/{id}` | `/api/movies/{id}` |
-| `GET /movie/{id}/credits` | `/api/movies/{id}` |
-| `GET /movie/{id}/images` | `/api/movies/{id}` |
-| `GET /movie/{id}/watch/providers` | `/api/movies/{id}` |
-| `GET /movie/{id}/similar` | `/api/movies/{id}/similar` |
-| `GET /genre/movie/list` | `/api/movies/genres` |
-
-### 画像配信
-TMDB画像CDN (`https://image.tmdb.org/t/p/`) から直接読み込む（Next.js の画像最適化は通さない）。
-画像URLの組み立てはフロントエンド側で行う（APIはパスのみ返す）。
-
-| 用途 | サイズ |
-|------|------|
-| ポスター（メイン） | `w500` |
-| ポスター（背景ブラー） | `w342` |
-| スチル・バックドロップ | `w780`, `w1280` |
-| プロフィール画像 | `w185` |
-| 配信サービスロゴ | `w342` |
-
-### セキュリティ
-
-#### APIキー保護
-- `TMDB_API_KEY` はサーバーサイド専用環境変数（`NEXT_PUBLIC_` プレフィックスなし）
-- ブラウザのDevTools、ソースコード、ネットワークタブのいずれからも取得不可
-- API Routes がプロキシとしてTMDBにリクエストを中継
-
-#### Rate Limiting
-API Routesにリクエスト制限を設ける。外部からの踏み台利用を防止。
-
-| 設定 | 値 |
-|------|------|
-| 方式 | IPアドレスベースのスライディングウィンドウ |
-| 制限 | 120リクエスト / 分 / IP |
-| 超過時レスポンス | `429 Too Many Requests` |
-| 実装 | インメモリMap（MVP）。将来はRedis等に置換可 |
-
-```
-src/lib/
-  rate-limit.ts           # Rate Limiter 実装
-```
-
-#### CORS設定
-API Routesに許可オリジンを制限するヘッダーを設定。
-
-| ヘッダー | 値 |
-|------|------|
-| `Access-Control-Allow-Origin` | 自ドメインのみ（本番: デプロイURL、開発: `localhost:3000`） |
-| `Access-Control-Allow-Methods` | `GET` |
-| `Access-Control-Allow-Headers` | `Content-Type` |
-
-※ ブラウザ以外からの直接アクセス（curl等）はCORSでは防げないため、Rate Limitingと併用
-
-#### セキュリティまとめ
-```
-外部ブラウザ → CORS拒否（自ドメイン以外のOriginヘッダー）
-curl/bot    → Rate Limitingで制限（120回/分/IP超過で429）
-正規ユーザー → 正常レスポンス
-```
-
-### レコメンドアルゴリズム
-フロントエンドからAPI Routesを経由してTMDBデータを取得し、フロントエンド側でミックスする。
-
-1. `/api/movies/discover` でフィルター条件に合う映画をランダムページから取得
-2. いいね済み映画がある場合、ランダムに1つ選び似た映画を取得（`/api/movies/{id}/recommendations` と `/api/movies/{id}/similar` を交互に混ぜる）
-3. discover結果（60%）と similar結果（40%）をランダムに混合
-4. 表示済みIDに含まれる映画を除外
-5. ポスター画像がない映画を除外
-6. 結果をキューに追加
-
-#### 「似た映画」の候補
-| 取得元 | 内容 |
-|------|------|
-| TMDB `/movie/{id}/recommendations` | 「これを好きな人はこれも好き」寄り。品質が高めなので優先 |
-| TMDB `/movie/{id}/similar` | キーワード・ジャンルが近い作品 |
-| TMDB `/person/{id}/movie_credits`（監督のみ） | いいねした映画の**監督**の他作品。キャストは使わない |
-
-監督は `/api/movies/{id}` の credits（スワイプ時に先読み済み）から取るので、通常は追加の通信なしで分かる。
-
-#### いいね直後の差し込み
-いいねした瞬間に似た映画を2本選び、**2つ先**（次の映画は先読み済みなので、その後ろ）に差し込む。
-- 同じ監督の作品があれば1本はそれにし、「◯◯ 監督の別作品」と表示する
-- 残りは recommendations + similar の上位10本からランダムに選び、「『◯◯』が好きなあなたに」と表示する
-- TMDB の類似映画が空の作品（新作・マイナー作品に多い）は、その映画のジャンル上位2つを両方含む映画（`/api/movies/discover?genres=..&match=all`）で代替する
-- 類似映画にも discover と同じ「レビュー20件以上」の足切りを適用する
-- 差し込まなかった残り（1回の取得で最大18本程度）は**候補プール**に貯める（上限100本、古い順に破棄）
-  - 次のバッチの「似た映画」枠（20本中8本）はプールから優先して埋め、足りない分だけ類似映画APIを呼ぶ。プールで埋まれば類似映画APIは呼ばない
-  - プール由来の映画にも「『◯◯』が好きなあなたに」を表示する
-  - いいねを取り消すと、その映画由来の候補はプールから外す
-  - プールはその探索セッション中だけ保持（ページを離れる・条件を変えると空になる）
-
-※ アルゴリズム自体は軽量（TMDBの類似映画APIをそのまま活用、自前での重い計算なし）
-
-### 将来のバックエンド拡張
-
-| 機能 | 技術候補 |
-|------|------|
-| 認証 | NextAuth.js / Supabase Auth |
-| ユーザーデータ保存 | Supabase / PlanetScale |
-| Filmarks連携 | API Routes経由でダミー→実APIに差替 |
-| Rate Limiting強化 | Redis（Upstash等） |
-
-将来追加するエンドポイント:
-```
-POST /api/user/like/{movieId}
-POST /api/user/bookmark/{movieId}
-GET  /api/user/history
-```
-
----
-
-## MVPスコープ
-
-### 含む
-- フィルタリング画面（ジャンル + 年代）
-- メイン探索画面（縦スワイプ + 横スワイプ）
-- ポスター・スチル画像表示
-- いいねボタン + 類似映画レコメンド
-- ブックマーク（ローカルストレージ）
-- ライブラリ画面（いいね一覧・保存一覧・好みの傾向）
-- 表示済み映画の非再表示
-- Filmarksページへのリンク
-- API Routes によるTMDB APIプロキシ（APIキー隠蔽）
-- Rate Limiting（IP単位 120回/分）
-- CORS制御
-
-### 含まない（将来実装）
-- ログイン / ユーザー認証
-- サーバーサイドDB
-- Filmarks実API連携
-- SNSシェア機能
-
----
-
-## 環境変数
-
-```
-TMDB_API_KEY=your_tmdb_api_key_here
-```
-
-`.env.local` に設定（`.env.example` をコピー）。TMDB ( https://www.themoviedb.org/ ) でアカウント作成後、API v3キーを取得。v4 の Read Access Token を入れても動く。
-※ `NEXT_PUBLIC_` プレフィックスは付けない（サーバーサイド専用）
-
-**APIキー未設定でも動作する。** その場合は架空映画のダミーデータ（`src/lib/mock.ts`）が返り、探索画面の右上に `DEMO` と表示される。キーを設定してサーバーを再起動すると本番データに切り替わる。
-
----
-
-## 起動方法
+## ローカルで動かす
 
 ```bash
 # Node.js 20 以上
 npm install
-cp .env.example .env.local   # TMDB_API_KEY を記入（空ならダミーデータ）
-npm run dev
+cp .env.example .env.local   # TMDB_API_KEY を記入（空ならダミーデータで動作）
+npm run dev                  # http://localhost:3000
 ```
 
-http://localhost:3000 にアクセス。スマホ実機で確認する場合は同じWi-Fiで `http://<PCのIP>:3000`。
+TMDB の API キーは https://www.themoviedb.org/settings/api で無料で取得できます。
 
-- PC操作: `↑/↓`・ホイールで映画切替、`←/→` でポスター/詳細切替。ポスターのダブルタップでもいいね
-- 本番ビルド: `npm run build && npm start`
+## 今後の展望
 
-### 実装メモ
-- Next.js 16 を使用。`middleware` は `proxy` に改名されたため、CORS と Rate Limiting は `src/proxy.ts`（`/api/*` に適用）で行う
-- `/api/movies/{id}` は TMDB の `append_to_response` で detail・credits・images・watch/providers を1リクエストで取得している
-- TMDB へのリクエストは `"use cache"`（Cache Components）で1時間キャッシュ
-- `npm run dev` / `build` は `--webpack` 指定。Windows の Smart App Control 環境で Turbopack のネイティブバイナリがブロックされるため。Mac 等なら `--webpack` を外して Turbopack でも動く
+- ログインとサーバー側 DB による、端末をまたいだいいね・保存の同期
+- すぐスキップした作品の傾向も学習に使う
+- 同じシリーズ作品が続きすぎないよう、シリーズ単位で出現数を制限する
+
+---
+
+This product uses the TMDB API but is not endorsed or certified by TMDB.
+配信情報の提供: JustWatch

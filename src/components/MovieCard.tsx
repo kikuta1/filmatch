@@ -84,12 +84,12 @@ export function MovieCard({
             )}
           </p>
         )}
-        <h2 className="text-2xl leading-tight font-black drop-shadow-lg">
+        <h2 className="line-clamp-2 text-2xl leading-tight font-black drop-shadow-lg">
           {movie.title}
           <span className="ml-2 text-lg font-medium text-white/70">({yearOf(movie.release_date)})</span>
         </h2>
         {movie.original_title !== movie.title && (
-          <p className="mt-0.5 text-sm text-white/50">{movie.original_title}</p>
+          <p className="mt-0.5 line-clamp-1 text-sm text-white/50">{movie.original_title}</p>
         )}
         {genres.length > 0 && (
           <p className="mt-2 flex flex-wrap gap-1.5">
