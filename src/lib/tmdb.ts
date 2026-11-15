@@ -11,6 +11,7 @@ import {
   type Genre,
   type Movie,
   type MovieFull,
+  type MovieImage,
   type MovieListResponse,
   type WatchProvider,
 } from "@/types/movie";
@@ -229,7 +230,7 @@ export async function getMovieFull(id: number): Promise<MovieFull | null> {
       crew: raw.credits.crew.filter((c) => c.job === "Director"),
     },
     images: {
-      backdrops: raw.images.backdrops.slice(0, 12),
+      backdrops: pickStills(raw.images.backdrops),
       posters: raw.images.posters.slice(0, 4),
     },
     watchProviders: jp
@@ -241,6 +242,20 @@ export async function getMovieFull(id: number): Promise<MovieFull | null> {
         }
       : null,
   };
+}
+
+/** スチル画像として見せる最低枚数。これに満たないときだけ文字入り画像も使う */
+const MIN_STILLS = 4;
+const MAX_STILLS = 12;
+
+/**
+ * 言語なし（文字の入っていない場面写真）を優先する。
+ * 言語付きの画像は同じ場面の各国版やタイトルロゴ入りが多く、並べると重複して見えるため。
+ */
+function pickStills(backdrops: MovieImage[]) {
+  const plain = backdrops.filter((b) => !b.iso_639_1);
+  const list = plain.length >= MIN_STILLS ? plain : backdrops;
+  return list.slice(0, MAX_STILLS);
 }
 
 export async function getGenres(): Promise<Genre[]> {

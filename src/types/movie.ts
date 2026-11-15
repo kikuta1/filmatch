@@ -59,6 +59,8 @@ export type MovieCredits = {
 
 export type MovieImage = {
   file_path: string;
+  /** 文字入り画像の言語。null は文字なし（純粋な場面写真） */
+  iso_639_1?: string | null;
   width: number;
   height: number;
   aspect_ratio: number;

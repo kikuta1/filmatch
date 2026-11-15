@@ -4,7 +4,6 @@
 TikTok のような縦スワイプで映画を次々に眺め、「いいね」した作品から好みを学習して似た映画を出す Web アプリです。
 
 **デモ: https://filmatch.vercel.app** （スマホでの閲覧を推奨）
-<!-- TODO: Vercel デプロイ後に実際の URL に差し替える -->
 
 <p>
   <img src="docs/screenshots/02-poster.png" width="200" alt="探索画面（ポスタービュー）">
