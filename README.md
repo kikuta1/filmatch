@@ -1,9 +1,11 @@
 # FilMatch
 
+[![CI](https://github.com/kikuta1/filmatch/actions/workflows/ci.yml/badge.svg)](https://github.com/kikuta1/filmatch/actions/workflows/ci.yml)
+
 **映画を、速く、気軽に、おしゃれに探す。**
 TikTok のような縦スワイプで映画を次々に眺め、「いいね」した作品から好みを学習して似た映画を出す Web アプリです。
 
-**デモ: https://filmatch.vercel.app** （スマホでの閲覧を推奨）
+**デモ: https://filmatch.vercel.app** （スマホでの閲覧を推奨。ホーム画面に追加するとアプリのように全画面で使えます）
 
 <p>
   <img src="docs/screenshots/02-poster.png" width="200" alt="探索画面（ポスタービュー）">
@@ -27,6 +29,7 @@ TikTok のような縦スワイプで映画を次々に眺め、「いいね」�
 | ライブラリ | いいね一覧・保存一覧と、いいねから分析した**好みの傾向**（ジャンル・年代のグラフ、「隠れた名作ハンター」などのタイプ判定） |
 
 PC ではキーボード（↑↓←→）とマウスホイールでも操作できます。
+PWA に対応しており、スマホのホーム画面に追加するとブラウザの枠なしで起動します。
 
 ## 工夫した点
 
@@ -54,7 +57,11 @@ TMDB の一覧 API は1回で20件返ってきます。差し込みに使わな�
 ブラウザは自前の API Routes だけを呼び、TMDB の API キーはサーバー側の環境変数にのみ置いています。
 `proxy.ts`（Next.js 16 で middleware から改名）で **CORS 制御**と **IP 単位のレート制限**（120回/分）をかけ、外部からの踏み台利用を防いでいます。
 
-### 5. API キーなしでも動く
+### 5. スマホのジェスチャーとの共存
+横スワイプで詳細を開閉するため、ブラウザの「戻る」ジェスチャーと衝突しないように、詳細ビューのスクロール領域にも `touch-action` を指定しています。
+また詳細を開くと履歴に1つ積むので、Android の戻るボタンや iPhone の端スワイプでもアプリから離脱せずポスターに戻れます。
+
+### 6. API キーなしでも動く
 `TMDB_API_KEY` が未設定のときは、架空の映画データと SVG で生成したポスターで動作します（画面右上に DEMO 表示）。クローンしてすぐ動作確認できます。
 
 ## 技術スタック
@@ -67,6 +74,7 @@ TMDB の一覧 API は1回で20件返ってきます。差し込みに使わな�
 | アニメーション | framer-motion（スワイプ・カード遷移） |
 | 状態管理 | zustand（persist で localStorage に保存） |
 | データ | TMDB API v3 |
+| テスト・CI | Vitest, GitHub Actions（lint・型チェック・テスト・ビルド） |
 | ホスティング | Vercel |
 
 ## アーキテクチャ
@@ -106,6 +114,7 @@ TMDB API
 npm install
 cp .env.example .env.local   # TMDB_API_KEY を記入（空ならダミーデータで動作）
 npm run dev                  # http://localhost:3000
+npm test                     # 単体テスト（レート制限・パラメータ検証・レコメンドロジック）
 ```
 
 TMDB の API キーは https://www.themoviedb.org/settings/api で無料で取得できます。

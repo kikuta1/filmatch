@@ -1,9 +1,0 @@
-# Vercel CLI でのアップロード対象から外すもの
-# APIキーは Vercel の環境変数で設定する
-.env*
-!.env.example
-会議資料/
-*.lnk
-test
-.next/
-node_modules/
