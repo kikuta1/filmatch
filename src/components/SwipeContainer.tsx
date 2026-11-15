@@ -24,6 +24,8 @@ const WHEEL_LOCK_MS = 700;
 /** いいね直後に差し込む類似映画の数と位置（次の映画は先読み済みなので、その後ろ） */
 const INJECT_COUNT = 2;
 const INJECT_OFFSET = 2;
+/** 詳細ビューを開いたときに履歴へ積む state のキー */
+const DETAIL_STATE = "filmatchDetail";
 /** 候補プールの上限（古いものから捨てる） */
 const POOL_LIMIT = 100;
 
@@ -156,6 +158,25 @@ export function SwipeContainer({ filters }: { filters: Filters }) {
   useEffect(() => {
     indexRef.current = index;
   }, [index]);
+
+  // 詳細ビューを履歴に1つ積み、ブラウザの「戻る」（ボタン・スワイプジェスチャー）で
+  // ページを離れずにポスタービューへ戻れるようにする
+  useEffect(() => {
+    const inDetail = !!window.history.state?.[DETAIL_STATE];
+    if (view === "detail" && !inDetail) {
+      window.history.pushState({ ...window.history.state, [DETAIL_STATE]: true }, "");
+    } else if (view === "poster" && inDetail) {
+      window.history.back();
+    }
+  }, [view]);
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (!window.history.state?.[DETAIL_STATE]) setView("poster");
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   const current = queue[index] as Movie | undefined;
   const next = queue[index + 1] as Movie | undefined;

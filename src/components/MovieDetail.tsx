@@ -30,8 +30,10 @@ export function MovieDetail({ movie }: { movie: Movie }) {
   const full = current?.data;
   const d = full?.detail;
 
+  // このスクロール領域より外側の touch-action は効かないため、ここでも縦パンのみに限定する。
+  // そうしないと横スワイプをブラウザの「戻る」ジェスチャーも拾ってしまう
   return (
-    <div className="h-full overflow-y-auto overscroll-contain bg-night">
+    <div className="h-full touch-pan-y overflow-y-auto overscroll-x-none overscroll-y-contain bg-night">
       <div className="pt-16 pr-20 pb-[max(2rem,env(safe-area-inset-bottom))] pl-4">
         <h2 className="text-2xl leading-tight font-black">
           {movie.title}
@@ -165,7 +167,7 @@ function People({ full }: { full: MovieFull }) {
 
   return (
     <Section title="監督・キャスト">
-      <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+      <ul className="-mx-4 flex gap-3 overflow-x-auto overscroll-x-contain px-4 pb-1">
         {people.map((p, i) => (
           <li key={`${p.id}-${i}`} className="w-20 shrink-0 text-center">
             <div className="relative mx-auto size-16 overflow-hidden rounded-full bg-card ring-1 ring-white/10">
