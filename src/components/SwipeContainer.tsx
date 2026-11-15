@@ -9,6 +9,7 @@ import { MovieCard, POSTER_SIZES, type Reason } from "@/components/MovieCard";
 import { MovieDetail } from "@/components/MovieDetail";
 import { TmdbImage } from "@/components/TmdbImage";
 import { fetchMovieFull } from "@/lib/client";
+import { insertInterleaved, removeUpcoming } from "@/lib/queue";
 import { fetchRecommendations, fetchSimilarPicks, type PoolEntry } from "@/lib/recommend";
 import { useHistory } from "@/store/history";
 import type { Filters, Movie } from "@/types/movie";
@@ -21,8 +22,11 @@ const PREFETCH_THRESHOLD = 3;
 const SWIPE_DISTANCE = 80;
 const SWIPE_VELOCITY = 500;
 const WHEEL_LOCK_MS = 700;
-/** いいね直後に差し込む類似映画の数と位置（次の映画は先読み済みなので、その後ろ） */
-const INJECT_COUNT = 2;
+/**
+ * いいね直後に差し込む似た映画の数と開始位置。
+ * 次の映画は先読み済みなので2つ先から、ランダムな出会いと交互になるよう1本おきに入れる
+ */
+const INJECT_COUNT = 4;
 const INJECT_OFFSET = 2;
 /** 詳細ビューを開いたときに履歴へ積む state のキー */
 const DETAIL_STATE = "filmatchDetail";
@@ -51,6 +55,8 @@ export function SwipeContainer({ filters }: { filters: Filters }) {
   const indexRef = useRef(0);
   /** いいね直後の差し込みで使わなかった類似映画 */
   const poolRef = useRef<PoolEntry[]>([]);
+  /** いいねから入れた映画 → きっかけのいいね映画の ID（取り消し時に取り除くため） */
+  const injectedFromRef = useRef(new Map<number, number>());
   const wheelLockRef = useRef(0);
 
   const markSeen = useHistory((s) => s.markSeen);
@@ -79,6 +85,7 @@ export function SwipeContainer({ filters }: { filters: Filters }) {
         const used = new Set(fresh.map((m) => m.id));
         const fromPool = poolRef.current.filter((e) => used.has(e.movie.id));
         poolRef.current = poolRef.current.filter((e) => !used.has(e.movie.id));
+        for (const e of fromPool) injectedFromRef.current.set(e.movie.id, e.seedId);
         if (fromPool.length) {
           setReasons((r) => ({
             ...r,
@@ -106,6 +113,8 @@ export function SwipeContainer({ filters }: { filters: Filters }) {
         excludeIds: new Set([...seenMovieIds, ...queueRef.current.map((m) => m.id)]),
         count: INJECT_COUNT,
       });
+      // 取得中にいいねが取り消されたら何もしない
+      if (!useHistory.getState().likedMovieIds.has(liked.id)) return;
       // 取得中に他の経路で入った映画は除く
       const queued = new Set(queueRef.current.map((m) => m.id));
 
@@ -119,12 +128,8 @@ export function SwipeContainer({ filters }: { filters: Filters }) {
       const freshPicks = picks.filter((c) => !queued.has(c.movie.id));
       if (!freshPicks.length) return;
       const fresh = freshPicks.map((c) => c.movie);
-      const at = Math.min(indexRef.current + INJECT_OFFSET, queueRef.current.length);
-      queueRef.current = [
-        ...queueRef.current.slice(0, at),
-        ...fresh,
-        ...queueRef.current.slice(at),
-      ];
+      for (const m of fresh) injectedFromRef.current.set(m.id, liked.id);
+      queueRef.current = insertInterleaved(queueRef.current, indexRef.current + INJECT_OFFSET, fresh);
       setQueue(queueRef.current);
       setReasons((r) => ({
         ...r,
@@ -146,10 +151,20 @@ export function SwipeContainer({ filters }: { filters: Filters }) {
           const movie = queueRef.current.find((m) => m.id === id);
           if (movie) injectSimilar(movie);
         }
-        // いいねを取り消したら、その映画由来の候補もプールから外す
+        // いいねを取り消したら、その映画をきっかけに入れた映画のうち、
+        // まだ表示していないものをキューから外し、プールからも外す
         for (const id of prev.likedMovieIds) {
           if (state.likedMovieIds.has(id)) continue;
           poolRef.current = poolRef.current.filter((e) => e.seedId !== id);
+          const next = removeUpcoming(
+            queueRef.current,
+            indexRef.current,
+            (m) => injectedFromRef.current.get(m.id) === id,
+          );
+          if (next.length !== queueRef.current.length) {
+            queueRef.current = next;
+            setQueue(next);
+          }
         }
       }),
     [injectSimilar],
